@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # MLflow en Databricks, paso a paso
 # MAGIC
@@ -131,8 +135,19 @@ print(f"Run: {run.info.run_id} · accuracy {accuracy_score(y_test, pred):.3f}")
 
 # COMMAND ----------
 
-# TODO: crea el run regresion_logistica_c01 con C = 0.1, registra accuracy, f1_macro y el tag autor
+with mlflow.start_run(run_name="regresion_logistica_c01") as run:
+    C = 0.1
+    modelo = make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=1000))
+    modelo.fit(X_train, y_train)
+    pred = modelo.predict(X_test)
 
+    mlflow.log_param("algoritmo", "LogisticRegression")
+    
+    mlflow.log_param("C", C)
+    mlflow.log_metric("accuracy", accuracy_score(y_test, pred))
+    
+    mlflow.log_metric("f1_macro", f1_score(y_test, pred, average="macro"))
+    mlflow.set_tag("autor", "Juan Felipe")
 
 # COMMAND ----------
 
@@ -200,8 +215,25 @@ print(f"Búsqueda terminada: {len(combinaciones)} runs hijos")
 
 # COMMAND ----------
 
-# TODO: repite la búsqueda agregando min_samples_leaf en [1, 5] dentro del padre busqueda_random_forest_v2
+combinaciones_v2 = [
+    {"n_estimators": n, "max_depth": d, "min_samples_leaf": m}
+    for n in [10, 50, 150]
+    for d in [2, 4, None]
+    for m in [1, 5]
+]
 
+with mlflow.start_run(run_name="busqueda_random_forest_v2") as padre:
+    mlflow.set_tag("etapa", "busqueda")
+    for params in combinaciones_v2:
+        nombre = f"rf_{params['n_estimators']}_prof_{params['max_depth']}_hoja_{params['min_samples_leaf']}"
+        with mlflow.start_run(run_name=nombre, nested=True):
+            modelo = RandomForestClassifier(random_state=42, **params).fit(X_train, y_train)
+            pred = modelo.predict(X_test)
+            mlflow.log_params({"algoritmo": "RandomForest", **params})
+            mlflow.log_metric("accuracy", accuracy_score(y_test, pred))
+            mlflow.log_metric("f1_macro", f1_score(y_test, pred, average="macro"))
+
+print(f"Búsqueda terminada: {len(combinaciones_v2)} runs hijos")
 
 # COMMAND ----------
 
@@ -371,8 +403,19 @@ display(comparacion)
 
 # COMMAND ----------
 
-# TODO: compara f1_del_alias("challenger") con f1_del_alias("champion") y mueve @champion si el challenger gana
+f1_champion = f1_del_alias("champion")
+f1_challenger = f1_del_alias("challenger")
+print(f"Champion: {f1_champion:.3f} · Challenger: {f1_challenger:.3f}")
 
+if f1_challenger > f1_champion:
+    version_challenger = cliente.get_model_version_by_alias(NOMBRE_MODELO, "challenger").version
+    cliente.set_registered_model_alias(NOMBRE_MODELO, "champion", version_challenger)
+    print("El challenger gana: se promueve.")
+else:
+    print("El challenger no supera al champion: no se promueve.")
+
+version_final = cliente.get_model_version_by_alias(NOMBRE_MODELO, "champion").version
+print(f"@champion quedó en la versión {version_final}")
 
 # COMMAND ----------
 
