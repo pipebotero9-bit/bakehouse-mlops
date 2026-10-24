@@ -21,7 +21,7 @@
 
 dbutils.widgets.text("catalog", "workspace")
 dbutils.widgets.text("schema", "bakehouse_dev")
-#testing CI/CD
+#testing CI/CD testing
 catalog = dbutils.widgets.get("catalog")
 schema = dbutils.widgets.get("schema")
 tabla_features = f"{catalog}.{schema}.ventas_diarias_features"
